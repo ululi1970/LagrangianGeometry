@@ -1,0 +1,91 @@
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath, amssymb, amsfonts}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstset{
+    language=Python,
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\small,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+
+\title{Spectral Solver for the Poisson-Beltrami Problem on $\mathbb{T}^3$}
+\author{Gemini CLI Solver Documentation}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Problem Statement}
+We consider the Poisson problem for the Laplace-Beltrami operator $\Delta_g$ on a triply periodic domain $\Omega = [0, 2\pi)^3$:
+\begin{equation}
+    \Delta_g u = f
+\end{equation}
+where $g_{ij}$ is a given metric tensor field. The Laplace-Beltrami operator is defined as:
+\begin{equation}
+    \Delta_g u = \frac{1}{\sqrt{g}} \partial_i \left( \sqrt{g} g^{ij} \partial_j u \right)
+\end{equation}
+where $g = \det(g_{ij})$ and $g^{ij}$ is the inverse metric tensor.
+
+\section{Numerical Strategy}
+\subsection{Discretization}
+The problem is solved using a \textbf{pseudospectral method}:
+\begin{itemize}
+    \item \textbf{Derivatives:} All spatial derivatives ($\partial_j u$ and the outer divergence $\partial_i$) are computed in Fourier space using the Fast Fourier Transform (FFT).
+    \item \textbf{Variable Coefficients:} The product $V^i = \sqrt{g} g^{ij} (\partial_j u)$ is computed in physical space to handle the arbitrary spatial dependence of the metric.
+\end{itemize}
+
+\subsection{Linear Solver and Preconditioning}
+For high resolutions (up to $1024^3$), the resulting linear system is large and potentially ill-conditioned. We provide two strategies:
+\begin{itemize}
+    \item \textbf{Spectral Laplacian Preconditioner:} A constant-coefficient approximation that is diagonal in Fourier space.
+    \item \textbf{Multigrid V-Cycle:} A full hierarchical solver in \texttt{poisson\_beltrami\_multigrid.py} that uses spectral restriction and prolongation across grid levels.
+\end{itemize}
+
+\subsection{GPU Readiness}
+The solver is implemented entirely using vectorized \texttt{numpy} operations (specifically \texttt{einsum} for tensor contractions). This structure allows for a near-seamless transition to \texttt{CuPy} for execution on NVIDIA GPUs by simply replacing the \texttt{numpy} and \texttt{scipy.fft} imports.
+
+\section{Documentation}
+\subsection{Classes}
+\begin{itemize}
+    \item \texttt{BeltramiPoissonSolver}: Standard solver with spectral Laplacian preconditioning (in \texttt{poisson\_beltrami\_3d.py}).
+    \item \texttt{MultigridBeltramiSolver}: Advanced solver with full V-cycle multigrid (in \texttt{poisson\_beltrami\_multigrid.py}).
+\end{itemize}
+
+\subsection{Usage Example (Multigrid)}
+\begin{lstlisting}[language=Python]
+from poisson_beltrami_multigrid import MultigridBeltramiSolver
+import numpy as np
+
+# Grid size
+N = 1024
+solver = MultigridBeltramiSolver(N, N, N, n_levels=4)
+
+# Define metric g_ij (3,3,N,N,N) array
+# solver.set_metric(g_ij)
+# u = solver.solve(f)
+\end{lstlisting}
+
+\end{document}

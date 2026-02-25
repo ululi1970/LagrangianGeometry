@@ -1,0 +1,89 @@
+\documentclass{article}
+\usepackage[a4paper, margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{listings}
+
+\title{Documentation for the Coupled Geometric PDE Solver}
+\author{Gemini}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+This document details the implementation of a numerical solver for a system of coupled partial differential equations describing the evolution of a Riemannian metric $g$ and a one-form $\lambda$ on a triply periodic 3-dimensional manifold ($T^3$). The code, implemented in Python with NumPy, uses pseudospectral methods for spatial discretization and a 4th-order Runge-Kutta scheme for time integration.
+
+The solver is contained in the file \texttt{coupled\_solver.py} and leverages several geometric helper functions to compute quantities such as the Lie derivative, Christoffel symbols, and the Laplace-de Rham operator.
+
+\section{Mathematical Model}
+The solver evolves a state $(g, \lambda)$ according to the following system of equations:
+
+\begin{align}
+    \partial_t g &= \mathcal{L}_v g \label{eq:g_evolution} \\
+    \partial_t \lambda &= -dp - \nu \Delta_H \lambda \label{eq:lambda_evolution} \\
+    \delta \lambda &= 0 \label{eq:constraint} \\
+    v &= \lambda^\sharp \label{eq:closure}
+\end{align}
+
+Where the terms are defined as:
+\begin{itemize}
+    \item $g$: The Riemannian metric tensor field, $g_{ij}(x,t)$.
+    \item $\lambda$: A time-dependent one-form, $\lambda_i(x,t)$.
+    \item $v$: A time-dependent vector field, $v^i(x,t)$, related to $\lambda$ via the musical isomorphism (raising the index with the metric): $v^i = g^{ij}\lambda_j$.
+    \item $\mathcal{L}_v g$: The Lie derivative of the metric $g$ with respect to the vector field $v$. In local coordinates, its components are given by:
+    \begin{equation}
+        (\mathcal{L}_v g)_{ij} = v^k \partial_k g_{ij} + g_{kj} \partial_i v^k + g_{ik} \partial_j v^k
+    \end{equation}
+    \item $\Delta_H$: The Laplace-de Rham operator (Hodge Laplacian). For a Ricci-flat metric ($R_{ij}=0$), this is equivalent to the negative of the connection Laplacian:
+    \begin{equation}
+        (\Delta_H \lambda)_i = -g^{jk}\nabla_j\nabla_k \lambda_i
+    \end{equation}
+    where $\nabla_k$ is the covariant derivative compatible with the metric $g$.
+    \item $p$: A scalar field (pressure) that acts as a Lagrange multiplier to enforce the constraint.
+    \item $dp$: The exterior derivative of $p$, which is the gradient of $p$ in this context.
+    \item $\delta \lambda$: The codifferential of $\lambda$. The condition $\delta \lambda = 0$ is equivalent to the vector field $v$ being divergence-free: $\nabla_i v^i = 0$.
+    \item $\nu$: A constant representing the viscosity.
+\end{itemize}
+
+\section{Numerical Implementation}
+The system is solved in a triply periodic box of side length $L=2\pi$. The numerical method can be broken down into several key components.
+
+\subsection{Time Integration}
+A classic 4th-order Runge-Kutta (RK4) scheme is used to advance the state $(g, \lambda)$ in time. This involves evaluating the right-hand-side (RHS) of equations \eqref{eq:g_evolution} and \eqref{eq:lambda_evolution} at four different stages within each time step.
+
+\subsection{Spatial Discretization}
+All spatial derivatives are computed spectrally using the Fast Fourier Transform (FFT). This approach is highly accurate for smooth functions on a periodic domain. A function $\phi(x)$ is transformed to Fourier space $\hat{\phi}(k)$, multiplied by $ik$ (where $k$ is the wavenumber), and then transformed back to physical space to obtain its derivative.
+
+\subsection{Pressure Projection}
+To enforce the divergence-free constraint \eqref{eq:constraint} at each time step, a projection method is used. The constraint must hold for all time, which implies its time derivative must be zero: $\partial_t(\delta\lambda) = 0$.
+
+A crucial point is that the time derivative $\partial_t$ and the codifferential $\delta$ do not commute, because $\delta$ depends on the time-varying metric $g$. Applying the condition $\partial_t(\delta\lambda)=0$ to the momentum equation \eqref{eq:lambda_evolution} yields a Poisson-Beltrami equation for the pressure $p$. The correct form for this equation is:
+\begin{equation}
+    \Delta_g p = -\delta(\nu \Delta_H \lambda) - \text{div}\left( (\mathcal{L}_v g)^\sharp \cdot v \right)
+\end{equation}
+where $\Delta_g p = \delta(dp)$ is the scalar Laplacian on $p$. The second term on the right-hand side is a source term arising from the time-dependence of the metric. It is written as the divergence of the vector field $W^i = g^{ij}(\mathcal{L}_v g)_{jk}v^k$. Because this source term is in divergence form, its integral over the periodic domain is guaranteed to be zero, thus satisfying the compatibility condition for the Poisson equation.
+
+\subsection{Key Computational Functions}
+\begin{description}
+    \item[\texttt{compute\_lie\_derivative\_g}] Implements the formula for $\mathcal{L}_v g$.
+
+    \item[\texttt{compute\_christoffel}] Computes the Christoffel symbols, $\Gamma^k_{ij}$, from the metric and its first derivatives.
+
+    \item[\texttt{compute\_connection\_laplacian\_1form}] Computes $(\Delta_H \lambda)_i = -g^{jk}\nabla_j\nabla_k \lambda_i$, involving two nested covariant derivatives.
+
+    \item[\texttt{BeltramiPoissonSolver.solve}] Solves the elliptic equation for the pressure $p$ given the full RHS, including the viscous and geometric source terms.
+\end{description}
+
+\section{Code Structure}
+The solver is encapsulated within the \texttt{coupled\_solver.py} file.
+\begin{itemize}
+    \item \textbf{\texttt{CoupledSolver} class:} The main class that orchestrates the simulation. Its \texttt{solve} method contains the main RK4 time-stepping loop, and its \texttt{get\_rhs} method computes the time derivatives of $g$ and $\lambda$.
+    \item \textbf{\texttt{BeltramiPoissonSolver} class:} A self-contained class for solving the scalar Poisson-Beltrami equation.
+    \item \textbf{Helper Functions:} A suite of standalone functions for computing the necessary geometric quantities.
+\end{itemize}
+
+\end{document}
