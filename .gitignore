@@ -1,0 +1,10 @@
+# Ignore compiled NumPy output files
+*.npz
+
+# Ignore LaTeX auxiliary files
+*.log
+*.dvi
+*.aux
+
+# Ignore Python cache directory
+__pycache__/
