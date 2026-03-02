@@ -36,6 +36,11 @@ The main solver can be executed with the following command:
 python3 coupled_solver.py [OPTIONS]
 ```
 
+For GPU-accelerated execution (requires CuPy), use:
+```bash
+conda run -n CUPY python3 coupled_solver_GPU.py [OPTIONS]
+```
+
 **Command-Line Options:**
 *   `--N`: Grid size per direction (e.g., 16, 32).
 *   `--dt`: Time step for the RK4 integrator (e.g., 0.005).
